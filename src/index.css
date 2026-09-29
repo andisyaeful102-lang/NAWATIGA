@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --cafe-bg: #09090b;
+    --cafe-surface: #141417;
+    --cafe-surface-raised: #1c1c20;
+    --cafe-border: #27272a;
+    --cafe-text: #fafafa;
+    --cafe-muted: #a1a1aa;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--cafe-text);
+    background-color: var(--cafe-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Safe area insets for modern notched phones (iPhone, modern Android) */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+  }
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top, 0px), 12px);
+  }
+  .min-h-screen-dynamic {
+    min-height: 100dvh;
+  }
+
+  /* Custom sleek monochrome scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #09090b;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+}
+
+.font-serif-cafe {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Grayscale image enhancement for consistent aesthetic */
+.aesthetic-bw {
+  filter: grayscale(100%) contrast(108%) brightness(96%);
+  transition: filter 0.4s ease, transform 0.4s ease;
+}
+.aesthetic-bw:hover {
+  filter: grayscale(80%) contrast(110%) brightness(100%);
+}
+
+/* ========================================================================= */
+/* PRINT MEDIA STYLES (Thermal Receipts & Table Barcode Stand Cards) */
+/* ========================================================================= */
+@media print {
+  /* Hide all non-printable elements */
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  header,
+  nav,
+  .no-print,
+  button,
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+
+  /* Printable containers override */
+  .printable-area {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  #printable-table-barcode,
+  #printable-thermal-receipt {
+    display: block !important;
+    position: static !important;
+    margin: 0 auto !important;
+  }
+
+  /* Force page breaks where needed */
+  .page-break-after {
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
+

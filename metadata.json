@@ -1,0 +1,6 @@
+{
+  "name": "NAWATIGA - Asisten ADMIN & Self-Order",
+  "description": "Asisten virtual ADMIN yang ramah, cepat, dan sistem pemesanan mandiri berbasis barcode meja untuk kafe NAWATIGA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
