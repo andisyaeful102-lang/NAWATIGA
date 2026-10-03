@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -13,7 +12,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const apiKey = process.env.GEMINI_API_KEY;
 
@@ -146,131 +146,16 @@ dynamicMenuItems.forEach((item) => {
   };
 });
 
-const waiterCalls: WaiterCall[] = [
-  {
-    id: 'call-sample-1',
-    tableNumber: '02',
-    reason: 'Minta Alat Makan / Tisu Tambahan',
-    status: 'pending',
-    createdAt: '12:45',
-  },
-];
+const waiterCalls: WaiterCall[] = [];
 
-const orders: OrderRecord[] = [
-  {
-    id: 'ord-seed-1',
-    orderNumber: 'NWT-2041',
-    tableNumber: '03',
-    items: [
-      {
-        name: 'Signature Palm Sugar Latte',
-        quantity: 2,
-        notes: 'Less Sugar (50%), Oat Milk (Oatly Barista), Normal Ice',
-        price: 76000,
-      },
-      {
-        name: 'Truffle Parmesan Fries',
-        quantity: 1,
-        notes: 'Saus aioli dipisah',
-        price: 35000,
-      },
-    ],
-    totalAmount: 122100,
-    paymentMethod: 'Bayar Nanti (Open Bill)',
-    paymentStatus: 'pay_later',
-    status: 'preparing',
-    createdAt: '12:48',
-  },
-  {
-    id: 'ord-seed-2',
-    orderNumber: 'NWT-1988',
-    tableNumber: 'BAR',
-    items: [
-      {
-        name: 'Single Origin V60 Filter',
-        quantity: 1,
-        notes: 'Beans: Ethiopia Yirgacheffe, Hot',
-        price: 42000,
-      },
-      {
-        name: 'Artisan Butter Croissant',
-        quantity: 1,
-        notes: 'Hangatkan / Re-heat',
-        price: 28000,
-      },
-    ],
-    totalAmount: 77000,
-    paymentMethod: 'Tunai (Cash)',
-    paymentStatus: 'paid',
-    status: 'completed',
-    createdAt: '12:15',
-  },
-  {
-    id: 'ord-seed-3',
-    orderNumber: 'NWT-1945',
-    tableNumber: '07',
-    items: [
-      {
-        name: "Nasi Goreng Se'i Sapi",
-        quantity: 2,
-        notes: 'Pedas Level 2, Telur Setengah Matang',
-        price: 110000,
-      },
-      {
-        name: 'Lychee Iced Tea',
-        quantity: 2,
-        notes: 'Normal Ice, Less Sugar',
-        price: 56000,
-      },
-    ],
-    totalAmount: 182600,
-    paymentMethod: 'QRIS',
-    paymentStatus: 'paid',
-    status: 'completed',
-    createdAt: '11:52',
-  },
-  {
-    id: 'ord-seed-4',
-    orderNumber: 'NWT-1902',
-    tableNumber: '01',
-    items: [
-      {
-        name: 'Iced Spanish Latte',
-        quantity: 1,
-        notes: 'Normal Sweetness, Fresh Milk',
-        price: 38000,
-      },
-      {
-        name: 'Pain au Chocolat',
-        quantity: 1,
-        notes: 'Warm',
-        price: 32000,
-      },
-    ],
-    totalAmount: 77000,
-    paymentMethod: 'Debit BCA',
-    paymentStatus: 'paid',
-    status: 'completed',
-    createdAt: '11:20',
-  },
-  {
-    id: 'ord-seed-5',
-    orderNumber: 'NWT-1860',
-    tableNumber: 'BAR',
-    items: [
-      {
-        name: 'Artisan Kyoto Matcha Latte',
-        quantity: 1,
-        notes: 'Oat Milk, Less Sweet',
-        price: 42000,
-      },
-    ],
-    totalAmount: 46200,
-    paymentMethod: 'QRIS',
-    status: 'completed',
-    createdAt: '10:45',
-  },
-];
+const orders: OrderRecord[] = [];
+
+// DELETE /api/barista/orders (Barista can reset all orders)
+app.delete('/api/barista/orders', (_req: Request, res: Response) => {
+  orders.length = 0;
+  waiterCalls.length = 0;
+  res.json({ success: true, message: 'Semua antrean pesanan berhasil dibersihkan!' });
+});
 
 // POST /api/admin/chat
 app.post('/api/admin/chat', async (req: Request, res: Response) => {
@@ -416,6 +301,7 @@ app.post('/api/barista/menu', (req: Request, res: Response) => {
     tags,
     isBestSeller,
     isSignature,
+    isRecommended,
     isAvailable = true,
     soldOutReason,
     customizable,
@@ -449,9 +335,10 @@ app.post('/api/barista/menu', (req: Request, res: Response) => {
     price: numPrice,
     formattedPrice: `Rp ${numPrice.toLocaleString('id-ID')}`,
     description: description ? description.trim() : 'Sajian istimewa dari dapur & bar NAWATIGA.',
-    imageUrl: imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http') ? imageUrl.trim() : defaultPhoto,
+    imageUrl: imageUrl && typeof imageUrl === 'string' && (imageUrl.startsWith('http') || imageUrl.startsWith('data:image/')) ? imageUrl.trim() : defaultPhoto,
     isBestSeller: Boolean(isBestSeller),
     isSignature: Boolean(isSignature),
+    isRecommended: Boolean(isRecommended),
     isAvailable: Boolean(isAvailable),
     soldOutReason: isAvailable ? undefined : (soldOutReason || 'Habis Terjual (Sold Out)'),
     tags: Array.isArray(tags) && tags.length > 0 ? tags : ['Menu Baru'],
@@ -502,6 +389,7 @@ app.put('/api/barista/menu/:id', (req: Request, res: Response) => {
     tags,
     isBestSeller,
     isSignature,
+    isRecommended,
     isAvailable,
     soldOutReason,
     customizable,
@@ -518,10 +406,11 @@ app.put('/api/barista/menu/:id', (req: Request, res: Response) => {
     price: numPrice,
     formattedPrice: `Rp ${numPrice.toLocaleString('id-ID')}`,
     description: description !== undefined ? String(description).trim() : current.description,
-    imageUrl: imageUrl !== undefined && String(imageUrl).startsWith('http') ? String(imageUrl).trim() : current.imageUrl,
+    imageUrl: imageUrl !== undefined && typeof imageUrl === 'string' && (imageUrl.startsWith('http') || imageUrl.startsWith('data:image/')) ? imageUrl.trim() : current.imageUrl,
     tags: Array.isArray(tags) ? tags : current.tags,
     isBestSeller: isBestSeller !== undefined ? Boolean(isBestSeller) : current.isBestSeller,
     isSignature: isSignature !== undefined ? Boolean(isSignature) : current.isSignature,
+    isRecommended: isRecommended !== undefined ? Boolean(isRecommended) : current.isRecommended,
     isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : (current.isAvailable ?? true),
     soldOutReason: isAvailable === false ? (soldOutReason || 'Habis Terjual (Sold Out)') : undefined,
     customizable: {
@@ -663,6 +552,34 @@ app.patch('/api/barista/calls/:id/resolve', (req: Request, res: Response) => {
   res.json({ success: true, call });
 });
 
+// POST /api/barista/tables/:tableNumber/reset (Kosongkan Meja / Tamu Sudah Meninggalkan Meja)
+app.post('/api/barista/tables/:tableNumber/reset', (req: Request, res: Response) => {
+  const { tableNumber } = req.params;
+  const cleanTable = tableNumber.padStart(2, '0');
+
+  let resetCount = 0;
+  orders.forEach((o) => {
+    if (o.tableNumber === cleanTable || o.tableNumber === tableNumber) {
+      if (o.status === 'completed' && o.paymentStatus === 'paid') {
+        (o as any).archived = true;
+        resetCount++;
+      }
+    }
+  });
+
+  // Clear waiter calls for this table
+  const callIdx = waiterCalls.findIndex((c) => c.tableNumber === cleanTable || c.tableNumber === tableNumber);
+  if (callIdx !== -1) {
+    waiterCalls.splice(callIdx, 1);
+  }
+
+  res.json({
+    success: true,
+    message: `Meja #${cleanTable} berhasil dikosongkan. Siap untuk tamu berikutnya!`,
+    resetCount,
+  });
+});
+
 // Cafe Settings State (QRIS payment info, Tax PB1, Service Charge, Notifications)
 let currentCafeSettings: CafeSettings = { ...DEFAULT_CAFE_SETTINGS };
 
@@ -731,6 +648,7 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -743,6 +661,11 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-});
+// Only start standalone server if not running inside Vercel serverless environment
+if (!process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+  });
+}
+
+export default app;

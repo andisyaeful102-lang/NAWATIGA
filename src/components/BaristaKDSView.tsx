@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { NawatigaLogo } from './NawatigaLogo.tsx';
 import { BaristaLoginView, StaffSession } from './BaristaLoginView.tsx';
 import { TransactionHistoryView } from './TransactionHistoryView.tsx';
+import { BarcodeStand } from './BarcodeStand.tsx';
 import {
   Coffee,
   Printer,
@@ -36,6 +37,7 @@ import {
   Settings,
   Banknote,
   Coins,
+  UtensilsCrossed,
 } from 'lucide-react';
 import {
   playAdminChime,
@@ -50,6 +52,7 @@ import {
 } from '../utils/audio.ts';
 import { MENU_ITEMS, CATEGORIES, MenuItem, MASTER_CATEGORIES, MasterCategoryId, getMasterCategory, getCategoryBadgeLabel } from '../data/menu.ts';
 import { ItemAvailabilityInfo } from './MenuCatalog.tsx';
+import { ALL_100_TABLES } from '../data/tables.ts';
 import { MenuEditorModal } from './MenuEditorModal.tsx';
 import { ReceiptModal } from './ReceiptModal.tsx';
 import { BaristaOrderAlertModal } from './BaristaOrderAlertModal.tsx';
@@ -89,9 +92,16 @@ export interface WaiterCallItem {
 interface BaristaKDSViewProps {
   onMenuUpdated?: (items: MenuItem[]) => void;
   onBackToMenu?: () => void;
+  onOpenStand?: () => void;
+  defaultSubTab?: 'orders' | 'stock' | 'history' | 'settings' | 'stand';
 }
 
-export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, onBackToMenu }) => {
+export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({
+  onMenuUpdated,
+  onBackToMenu,
+  onOpenStand,
+  defaultSubTab,
+}) => {
   // Staff Authentication State
   const [staffSession, setStaffSession] = useState<StaffSession | null>(() => {
     if (typeof window !== 'undefined') {
@@ -115,7 +125,9 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
     showToast('Terminal POS & KDS berhasil dikunci. Mesin aman dari sabotase!');
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'stock' | 'history' | 'settings'>('orders');
+  const [activeSubTab, setActiveSubTab] = useState<'orders' | 'stock' | 'history' | 'settings' | 'stand'>(
+    defaultSubTab || 'orders'
+  );
   const [orders, setOrders] = useState<BaristaOrder[]>([]);
   const [calls, setCalls] = useState<WaiterCallItem[]>([]);
   const [menuList, setMenuList] = useState<MenuItem[]>(MENU_ITEMS);
@@ -145,10 +157,52 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
   const [stockSearchQuery, setStockSearchQuery] = useState<string>('');
   const [stockMasterCategory, setStockMasterCategory] = useState<MasterCategoryId>('all');
   const [stockSelectedCategory, setStockSelectedCategory] = useState<string>('all');
-  const [stockFilterState, setStockFilterState] = useState<'all' | 'ready' | 'soldout'>('all');
+  const [stockFilterState, setStockFilterState] = useState<'all' | 'ready' | 'soldout' | 'recommended' | 'bestseller'>('all');
   const [orderQueueMasterCategory, setOrderQueueMasterCategory] = useState<MasterCategoryId>('all');
   const [orderQueuePaymentFilter, setOrderQueuePaymentFilter] = useState<'all' | 'pay_later' | 'paid'>('all');
   const [settlementOrder, setSettlementOrder] = useState<BaristaOrder | null>(null);
+  const [isTableManagerOpen, setIsTableManagerOpen] = useState<boolean>(false);
+  const [selectedTableToClear, setSelectedTableToClear] = useState<string>('');
+
+  const handleResetTable = async (tableNum: string) => {
+    const cleanTable = tableNum.padStart(2, '0');
+    try {
+      const res = await fetch(`/api/barista/tables/${cleanTable}/reset`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`🧹 ${data.message || `Meja #${cleanTable} berhasil dikosongkan!`}`);
+        playAdminChime();
+        fetchOrdersCallsAndAvailability();
+      } else {
+        showToast(data.error || 'Gagal mengosongkan meja');
+      }
+    } catch {
+      showToast('Gagal menghubungi server');
+    }
+  };
+
+  const occupiedTables = useMemo(() => {
+    const tableMap = new Map<string, { tableNumber: string; orders: BaristaOrder[]; allCompletedAndPaid: boolean; totalBill: number }>();
+    orders.forEach((o) => {
+      if ((o as any).archived) return;
+      if (o.tableNumber === 'BAR' || /bar|kasir/i.test(o.tableNumber)) return;
+      const clean = o.tableNumber.padStart(2, '0');
+      const existing = tableMap.get(clean) || { tableNumber: clean, orders: [], allCompletedAndPaid: true, totalBill: 0 };
+      existing.orders.push(o);
+      existing.totalBill += o.totalAmount;
+      if (o.status !== 'completed' || o.paymentStatus !== 'paid') {
+        existing.allCompletedAndPaid = false;
+      }
+      tableMap.set(clean, existing);
+    });
+    return Array.from(tableMap.values()).sort((a, b) => Number(a.tableNumber) - Number(b.tableNumber));
+  }, [orders]);
+
+  const occupiedTableNumbers = useMemo(() => {
+    return new Set(occupiedTables.map((t) => t.tableNumber));
+  }, [occupiedTables]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -516,7 +570,9 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
     const matchesStatus =
       stockFilterState === 'all' ||
       (stockFilterState === 'ready' && ready) ||
-      (stockFilterState === 'soldout' && !ready);
+      (stockFilterState === 'soldout' && !ready) ||
+      (stockFilterState === 'recommended' && Boolean(item.isRecommended || item.isSignature || (item.tags || []).some((t) => /rekomendasi/i.test(t)))) ||
+      (stockFilterState === 'bestseller' && Boolean(item.isBestSeller));
 
     return matchesCategory && matchesSearch && matchesStatus;
   });
@@ -601,7 +657,7 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-zinc-300 uppercase tracking-widest font-mono">
-                  Dashboard Kasir & Barista Station (KDS)
+                  Portal Barista & Pemilik Kafe (Admin / KDS)
                 </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
@@ -614,7 +670,7 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
               <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 font-medium">
                   <User className="w-3 h-3 text-amber-400" />
-                  <span>Akses: <strong>Admin NAWATIGA</strong></span>
+                  <span>Akses: <strong>Barista & Pemilik Kafe</strong></span>
                 </span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-300 text-[11px] font-mono">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -835,6 +891,42 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
             <SlidersHorizontal className="w-4 h-4 text-emerald-400" />
             <span>Pengaturan QRIS & Pajak PB1</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('stand')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeSubTab === 'stand'
+                ? 'bg-amber-400 text-zinc-950 font-black shadow-lg shadow-amber-500/25'
+                : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800'
+            }`}
+            title="Cetak & Pratinjau Stand Akrilik Barcode Meja 01-100"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Cetak Barcode Meja (01-100)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsTableManagerOpen(true)}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-zinc-900 hover:bg-zinc-850 text-amber-300 border border-amber-500/40 hover:border-amber-400 shadow-md transition-all cursor-pointer"
+            title="Buka panel kosongkan meja kafe saat tamu sudah pulang"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>🧹 Kosongkan Meja ({occupiedTables.length})</span>
+          </button>
+
+          {onBackToMenu && (
+            <button
+              type="button"
+              onClick={onBackToMenu}
+              className="ml-auto px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-750 transition-all cursor-pointer"
+              title="Beralih ke tampilan layar konsumen"
+            >
+              <UtensilsCrossed className="w-4 h-4" />
+              <span>Mode Tamu Konsumen →</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -916,38 +1008,90 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
               </div>
             </div>
           )}
-          {/* Pending Waiter Calls Alert Bar (if any) */}
-          {pendingCalls.length > 0 && (
-            <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-700 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-white">
-                  <Bell className="w-4 h-4 text-amber-400 animate-bounce" />
-                  <span>{pendingCalls.length} Meja Memanggil Staf / Barista:</span>
+
+          {/* Quick Table Turnover & Clear Table Section */}
+          <div className="bg-zinc-900/90 rounded-2xl p-4 border border-zinc-800 space-y-3 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-400 text-zinc-950 flex items-center justify-center font-black shadow-md shadow-amber-400/20 flex-shrink-0">
+                  🧹
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-white flex items-center gap-2">
+                    <span>FITUR KOSONGKAN MEJA (TAMU SUDAH PULANG)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-amber-300 border border-zinc-700 font-mono">
+                      {occupiedTables.length} Meja Terisi
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-zinc-400">
+                    Klik meja di bawah untuk mengosongkan sesi meja saat tamu selesai/pulang, agar tamu berikutnya yang scan barcode mendapat meja yang bersih.
+                  </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {pendingCalls.map((call) => (
-                  <div
-                    key={call.id}
-                    className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 shadow-sm flex items-center justify-between gap-2"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-white">Meja #{call.tableNumber}</div>
-                      <div className="text-[11px] text-zinc-400 truncate max-w-[160px]">{call.reason}</div>
-                      <div className="text-[10px] text-zinc-500 font-mono">{call.createdAt}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleResolveCall(call.id)}
-                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-[11px] font-bold whitespace-nowrap shadow-sm transition-colors cursor-pointer"
-                    >
-                      Sudah Dihampiri
-                    </button>
-                  </div>
-                ))}
+
+              {/* Quick manual table number reset */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTableToClear}
+                  onChange={(e) => setSelectedTableToClear(e.target.value)}
+                  className="bg-zinc-950 border border-zinc-700 text-white rounded-xl px-3 py-1.5 text-xs font-bold font-mono focus:outline-none focus:border-amber-400 cursor-pointer"
+                >
+                  <option value="">Pilih Nomor Meja...</option>
+                  {ALL_100_TABLES.map((t) => (
+                    <option key={t} value={t}>
+                      Meja #{t} {occupiedTableNumbers.has(t) ? '• (Terisi)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedTableToClear}
+                  onClick={() => {
+                    if (selectedTableToClear) {
+                      handleResetTable(selectedTableToClear);
+                      setSelectedTableToClear('');
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow"
+                >
+                  <span>Kosongkan Meja</span>
+                </button>
               </div>
             </div>
-          )}
+
+            {/* Occupied Tables List Pills */}
+            {occupiedTables.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-800">
+                <span className="text-[11px] text-zinc-400 font-semibold">Daftar Meja Terisi:</span>
+                {occupiedTables.map((tbl) => (
+                  <button
+                    key={tbl.tableNumber}
+                    type="button"
+                    onClick={() => handleResetTable(tbl.tableNumber)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all active:scale-95 cursor-pointer shadow-sm ${
+                      tbl.allCompletedAndPaid
+                        ? 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-600/80 text-emerald-200'
+                        : 'bg-zinc-800 hover:bg-zinc-750 border-zinc-600 text-zinc-100'
+                    }`}
+                    title="Klik untuk mengosongkan meja ini saat tamu pulang"
+                  >
+                    <span>Meja #{tbl.tableNumber}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                      tbl.allCompletedAndPaid ? 'bg-emerald-500 text-zinc-950 font-black' : 'bg-amber-400/20 text-amber-300'
+                    }`}>
+                      {tbl.allCompletedAndPaid ? '✓ Lunas & Selesai' : 'Sedang Aktif'}
+                    </span>
+                    <span className="text-amber-400 hover:text-white font-black text-xs">✕ Kosongkan Meja</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[11px] text-zinc-500 italic pt-2 border-t border-zinc-800 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Seluruh meja saat ini kosong & bersih, siap digunakan oleh pengunjung baru.</span>
+              </div>
+            )}
+          </div>
 
           {/* Quick Walk-in Bar Order Creation Card */}
           <div className="bg-gradient-to-r from-amber-950/40 via-zinc-900 to-zinc-950 p-4 rounded-2xl border border-amber-500/40 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1418,6 +1562,21 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
                             </button>
                           </div>
                         )}
+
+                        {/* Direct Table Turnover Button */}
+                        {order.tableNumber !== 'BAR' && !/bar|kasir/i.test(order.tableNumber) && (
+                          <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-zinc-400">Tamu sudah pulang?</span>
+                            <button
+                              type="button"
+                              onClick={() => handleResetTable(order.tableNumber)}
+                              className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 hover:text-amber-200 border border-zinc-750 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                              title="Kosongkan meja ini saat tamu pulang"
+                            >
+                              <span>🧹 Kosongkan Meja #{order.tableNumber}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1496,14 +1655,14 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
                 />
               </div>
 
-              {/* Status filter: All / Ready / Sold Out */}
-              <div className="flex items-center gap-1.5 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+              {/* Status filter: All / Ready / Sold Out / Rekomendasi / Best Seller */}
+              <div className="flex items-center gap-1.5 bg-zinc-900 p-1 rounded-xl border border-zinc-800 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setStockFilterState('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     stockFilterState === 'all'
-                      ? 'bg-white text-zinc-950 font-bold'
+                      ? 'bg-white text-zinc-950 font-bold shadow'
                       : 'text-zinc-400 hover:text-white'
                   }`}
                 >
@@ -1512,9 +1671,9 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
                 <button
                   type="button"
                   onClick={() => setStockFilterState('ready')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     stockFilterState === 'ready'
-                      ? 'bg-emerald-500 text-zinc-950 font-bold'
+                      ? 'bg-emerald-500 text-zinc-950 font-bold shadow'
                       : 'text-zinc-400 hover:text-white'
                   }`}
                 >
@@ -1523,13 +1682,41 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
                 <button
                   type="button"
                   onClick={() => setStockFilterState('soldout')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     stockFilterState === 'soldout'
-                      ? 'bg-red-600 text-white font-bold'
+                      ? 'bg-red-600 text-white font-bold shadow'
                       : 'text-zinc-400 hover:text-white'
                   }`}
                 >
                   Habis ({totalSoldOutCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilterState('recommended')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    stockFilterState === 'recommended'
+                      ? 'bg-amber-400 text-zinc-950 font-bold shadow'
+                      : 'text-zinc-400 hover:text-amber-300'
+                  }`}
+                >
+                  <span>🌟 Rekomendasi</span>
+                  <span className="font-mono text-[10px]">
+                    ({menuList.filter((i) => i.isRecommended || i.isSignature || (i.tags || []).some((t) => /rekomendasi/i.test(t))).length})
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilterState('bestseller')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                    stockFilterState === 'bestseller'
+                      ? 'bg-amber-400 text-zinc-950 font-bold shadow'
+                      : 'text-zinc-400 hover:text-amber-300'
+                  }`}
+                >
+                  <span>🔥 Best Seller</span>
+                  <span className="font-mono text-[10px]">
+                    ({menuList.filter((i) => i.isBestSeller).length})
+                  </span>
                 </button>
               </div>
             </div>
@@ -1650,6 +1837,13 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
                             </span>
                           )}
 
+                          {item.isRecommended && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-500/60 text-amber-300 text-[9px] font-black">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                              Rekomendasi
+                            </span>
+                          )}
+
                           {item.isBestSeller && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-950 border border-amber-800 text-amber-300 text-[9px] font-black">
                               <Flame className="w-2.5 h-2.5 text-amber-400" />
@@ -1753,6 +1947,20 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
         />
       )}
 
+      {/* ========================================================================= */}
+      {/* SUB-TAB 5: CETAK BARCODE STAND MEJA 01-100 (ADMIN / PEMILIK KAFE) */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'stand' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <BarcodeStand
+            tableNumber="01"
+            onOpenDigitalMenu={onBackToMenu || (() => {})}
+            onSelectTable={() => {}}
+            onBackToBarista={() => setActiveSubTab('orders')}
+          />
+        </div>
+      )}
+
       {/* Menu Editor Modal (Add new or Edit existing item) */}
       <MenuEditorModal
         isOpen={isEditorOpen}
@@ -1766,6 +1974,11 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
         isOpen={Boolean(printedOrder)}
         onClose={() => setPrintedOrder(null)}
         baristaOrder={printedOrder}
+        allBaristaOrders={
+          printedOrder
+            ? orders.filter((o) => o.tableNumber === printedOrder.tableNumber)
+            : undefined
+        }
         initialMode="customer"
       />
 
@@ -1801,6 +2014,7 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
         isOpen={Boolean(settlementOrder)}
         onClose={() => setSettlementOrder(null)}
         order={settlementOrder}
+        allTableOrders={orders}
         onPaymentSettled={async (orderId, paymentMethod, amountReceived) => {
           await handleSettlePayment(orderId, paymentMethod, amountReceived);
         }}
@@ -1809,6 +2023,152 @@ export const BaristaKDSView: React.FC<BaristaKDSViewProps> = ({ onMenuUpdated, o
           setPrintedOrder(ord);
         }}
       />
+
+      {/* Table Turnover & Reset Modal */}
+      {isTableManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-zinc-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/20 text-lg">
+                  🧹
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    Manajemen & Pengosongan Meja
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Gunakan saat tamu telah selesai & meninggalkan meja kafe.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTableManagerOpen(false)}
+                className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="text-xs text-zinc-300 bg-zinc-900/80 p-3.5 rounded-2xl border border-zinc-800 leading-relaxed">
+              💡 <strong>Mengapa perlu dikosongkan?</strong> Ketika kasir/barista mengosongkan meja, sesi pesanan sebelumnya diarsipkan sehingga tamu baru yang duduk dan memindai barcode di meja tersebut langsung mendapatkan <strong>Menu Digital yang bersih (tanpa struk tamu lama)</strong>.
+            </div>
+
+            {/* Quick selector */}
+            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2.5">
+              <label className="text-xs font-bold text-white block">
+                Kosongkan Meja Tertentu (Pilih Nomor Meja):
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTableToClear}
+                  onChange={(e) => setSelectedTableToClear(e.target.value)}
+                  className="flex-1 bg-zinc-950 border border-zinc-700 text-white rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-none focus:border-amber-400 cursor-pointer"
+                >
+                  <option value="">Pilih Nomor Meja (01-100)...</option>
+                  {ALL_100_TABLES.map((t) => (
+                    <option key={t} value={t}>
+                      Meja #{t} {occupiedTableNumbers.has(t) ? '• (Ada Pesanan)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedTableToClear}
+                  onClick={() => {
+                    if (selectedTableToClear) {
+                      handleResetTable(selectedTableToClear);
+                      setSelectedTableToClear('');
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-zinc-950 font-black text-xs transition-all cursor-pointer whitespace-nowrap shadow"
+                >
+                  Kosongkan Meja
+                </button>
+              </div>
+            </div>
+
+            {/* Active / Occupied Tables List */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider font-mono">
+                  Daftar Meja Terisi Saat Ini ({occupiedTables.length})
+                </span>
+                {occupiedTables.some((t) => t.allCompletedAndPaid) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      occupiedTables
+                        .filter((t) => t.allCompletedAndPaid)
+                        .forEach((t) => handleResetTable(t.tableNumber));
+                    }}
+                    className="text-xs text-amber-300 hover:text-amber-200 font-bold underline cursor-pointer"
+                  >
+                    Kosongkan Semua yang Selesai & Lunas
+                  </button>
+                )}
+              </div>
+
+              {occupiedTables.length > 0 ? (
+                <div className="space-y-2">
+                  {occupiedTables.map((tbl) => (
+                    <div
+                      key={tbl.tableNumber}
+                      className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-3 shadow-sm hover:border-zinc-700 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-black text-white">
+                            Meja #{tbl.tableNumber}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                            tbl.allCompletedAndPaid
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/80'
+                              : 'bg-amber-400/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {tbl.allCompletedAndPaid ? '✓ Lunas & Sudah Diambil' : 'Sedang Aktif / Belum Lunas'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-zinc-400 mt-1">
+                          {tbl.orders.length} pesanan · Total: Rp {tbl.totalBill.toLocaleString('id-ID')}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleResetTable(tbl.tableNumber)}
+                        className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                      >
+                        <span>🧹 Kosongkan Meja</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center space-y-2 bg-zinc-900/50 rounded-2xl border border-zinc-850">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                    ✓
+                  </div>
+                  <p className="text-xs text-zinc-300 font-semibold">
+                    Semua meja saat ini bersih dan tidak ada sesi aktif yang tertahan.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-zinc-800 text-right">
+              <button
+                type="button"
+                onClick={() => setIsTableManagerOpen(false)}
+                className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Tutup Panel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

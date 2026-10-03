@@ -213,13 +213,13 @@ export const BaristaLoginView: React.FC<BaristaLoginViewProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-zinc-900 border border-zinc-750 text-zinc-300 text-xs font-semibold">
               <Lock className="w-3 h-3 text-amber-400" />
-              <span>Terminal POS & KDS Bar Terkunci</span>
+              <span>Terminal Bar & Dashboard Pemilik Terkunci</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black font-serif-cafe text-white tracking-wide">
-              Login Admin Barista
+              Login Barista & Pemilik Kafe
             </h2>
             <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
-              Masukkan PIN Keamanan untuk membuka dashboard transaksi, kendali tiket dapur, dan stok menu.
+              Masukkan PIN Keamanan untuk mengelola antrean dapur, kasir, stok menu, dan cetak barcode meja.
             </p>
           </div>
         </div>
@@ -228,9 +228,9 @@ export const BaristaLoginView: React.FC<BaristaLoginViewProps> = ({
         <div className="bg-zinc-900/80 rounded-2xl p-3 border border-zinc-800 flex items-start gap-2.5 text-left text-xs">
           <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
           <div className="space-y-0.5">
-            <div className="font-bold text-zinc-200 text-[11px]">Proteksi Anti-Sabotase Aktif:</div>
+            <div className="font-bold text-zinc-200 text-[11px]">Proteksi Barista & Pemilik Kafe:</div>
             <p className="text-[10px] text-zinc-400 leading-normal">
-              Akses transaksi, cetak struk, dan perubahan status antrean hanya dapat dioperasikan oleh <strong>Admin / Petugas Resmi</strong> NAWATIGA.
+              Akses kasir, cetak struk, dan pengaturan kafe hanya dapat dioperasikan oleh <strong>Barista / Pemilik Resmi</strong> NAWATIGA.
             </p>
           </div>
         </div>

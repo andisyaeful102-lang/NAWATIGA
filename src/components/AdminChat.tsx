@@ -15,7 +15,6 @@ export interface ChatMessage {
 interface AdminChatProps {
   tableNumber: string;
   onOpenMenu: () => void;
-  onOpenCallWaiter: () => void;
   onSelectItem: (item: MenuItem) => void;
 }
 
@@ -26,13 +25,11 @@ const QUICK_PROMPTS = [
   { label: '🥛 Ada pilihan susu nabati (oat/soy)?', query: 'Apakah ada pilihan susu nabati seperti oat milk atau soy milk?' },
   { label: '🍬 Bisa atur tingkat kemanisan (sugar level)?', query: 'Apakah tingkat kemanisan kopi bisa diatur?' },
   { label: '☕ Pesan Signature Palm Sugar Latte 1 ya', query: 'Kak, saya mau pesan Signature Palm Sugar Latte 1 ya' },
-  { label: '🛎️ Panggil Waiter ke Meja', query: 'Bisa tolong panggil staf atau waiter ke meja saya?' },
 ];
 
 export const AdminChat: React.FC<AdminChatProps> = ({
   tableNumber,
   onOpenMenu,
-  onOpenCallWaiter,
   onSelectItem,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -139,8 +136,6 @@ export const AdminChat: React.FC<AdminChatProps> = ({
   const handleActionClick = (msg: ChatMessage) => {
     if (msg.suggestedAction === 'open_menu') {
       onOpenMenu();
-    } else if (msg.suggestedAction === 'call_waiter') {
-      onOpenCallWaiter();
     } else if (msg.suggestedAction === 'open_item' && msg.targetItemId) {
       const item = MENU_ITEMS.find((i) => i.id === msg.targetItemId);
       if (item) {
@@ -173,17 +168,6 @@ export const AdminChat: React.FC<AdminChatProps> = ({
               Online & Siap Melayani Meja <strong className="text-white font-bold">#{tableNumber}</strong>
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenCallWaiter}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 font-semibold border border-zinc-700 transition-colors"
-          >
-            <Bell className="w-3.5 h-3.5" />
-            <span>Panggil Waiter</span>
-          </button>
         </div>
       </div>
 
@@ -225,17 +209,6 @@ export const AdminChat: React.FC<AdminChatProps> = ({
                         <Utensils className="w-3.5 h-3.5" />
                         <span>Buka Menu Digital Meja {tableNumber}</span>
                         <ArrowRight className="w-3.5 h-3.5 text-zinc-500" />
-                      </button>
-                    )}
-
-                    {msg.suggestedAction === 'call_waiter' && (
-                      <button
-                        type="button"
-                        onClick={onOpenCallWaiter}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-600 shadow-md transition-all active:scale-95"
-                      >
-                        <Bell className="w-3.5 h-3.5" />
-                        <span>Panggil Waiter ke Meja {tableNumber}</span>
                       </button>
                     )}
 

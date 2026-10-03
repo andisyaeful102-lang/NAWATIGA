@@ -26,6 +26,7 @@ interface PaymentSettlementModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: BaristaOrder | null;
+  allTableOrders?: BaristaOrder[];
   onPaymentSettled: (orderId: string, paymentMethod: string, amountReceived?: number) => Promise<void> | void;
   onOpenReceipt?: (order: BaristaOrder) => void;
 }
@@ -34,6 +35,7 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
   isOpen,
   onClose,
   order,
+  allTableOrders = [],
   onPaymentSettled,
   onOpenReceipt,
 }) => {
@@ -46,6 +48,19 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
   const [settledSuccess, setSettledSuccess] = useState<boolean>(false);
   const [cafeSettings, setCafeSettings] = useState<CafeSettings>(DEFAULT_CAFE_SETTINGS);
   const [qrisUrl, setQrisUrl] = useState<string>('');
+  const [settleAllOrders, setSettleAllOrders] = useState<boolean>(true);
+
+  // Unpaid orders for this table (Initial order + Tambah pesanan)
+  const relatedUnpaidOrders = (allTableOrders || []).filter(
+    (o) => o.tableNumber === order?.tableNumber && o.paymentStatus !== 'paid'
+  );
+  const hasMultipleUnpaid = relatedUnpaidOrders.length > 1;
+
+  const combinedTotal = hasMultipleUnpaid
+    ? relatedUnpaidOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0)
+    : (order?.totalAmount || 0);
+
+  const effectiveTotal = hasMultipleUnpaid && settleAllOrders ? combinedTotal : (order?.totalAmount || 0);
 
   // Fetch cafe settings for QRIS merchant details
   useEffect(() => {
@@ -63,12 +78,13 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
   // Reset or initialize state when order changes
   useEffect(() => {
     if (order) {
-      setCashReceived(order.totalAmount);
+      const initialTotal = hasMultipleUnpaid && settleAllOrders ? combinedTotal : order.totalAmount;
+      setCashReceived(initialTotal);
       setSettledSuccess(false);
       setIsProcessing(false);
       setEdcRefNo('');
     }
-  }, [order, isOpen]);
+  }, [order, isOpen, hasMultipleUnpaid, settleAllOrders, combinedTotal]);
 
   // Generate dynamic QRIS for settlement
   useEffect(() => {
@@ -81,7 +97,7 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
 
     const merchant = cafeSettings.qris?.merchantName || 'NAWATIGA COFFEE';
     const nmid = cafeSettings.qris?.nmid || 'ID1024356789012';
-    const payload = `00020101021226${nmid.length}${nmid}52045812530336054${order.totalAmount}5802ID59${merchant.length}${merchant}6007JAKARTA6304`;
+    const payload = `00020101021226${nmid.length}${nmid}52045812530336054${effectiveTotal}5802ID59${merchant.length}${merchant}6007JAKARTA6304`;
 
     QRCode.toDataURL(payload, {
       width: 260,
@@ -90,11 +106,11 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
     })
       .then((url) => setQrisUrl(url))
       .catch(() => {});
-  }, [isOpen, order, paymentType, cafeSettings]);
+  }, [isOpen, order, paymentType, cafeSettings, effectiveTotal]);
 
   if (!isOpen || !order) return null;
 
-  const total = order.totalAmount;
+  const total = effectiveTotal;
   const changeAmount = cashReceived - total;
   const isCashSufficient = paymentType !== 'Tunai' || cashReceived >= total;
 
@@ -114,10 +130,15 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
         finalMethod = `Tunai (Cash)`;
       }
 
-      await onPaymentSettled(order.id || order.orderNumber, finalMethod, cashReceived);
+      if (hasMultipleUnpaid && settleAllOrders) {
+        for (const o of relatedUnpaidOrders) {
+          await onPaymentSettled(o.id || o.orderNumber, finalMethod, o.totalAmount);
+        }
+      } else {
+        await onPaymentSettled(order.id || order.orderNumber, finalMethod, cashReceived);
+      }
 
       // Play chime + Indonesian announcement
-      // Note: Cash will omit total money amount, QRIS and Rekening will announce exact total money amount!
       playPaymentSuccessAnnouncement(order.tableNumber, total, finalMethod);
 
       setSettledSuccess(true);
@@ -223,8 +244,37 @@ export const PaymentSettlementModal: React.FC<PaymentSettlementModalProps> = ({
             <>
               {/* Order Bill Summary */}
               <div className="bg-zinc-900/80 p-4 rounded-2xl border border-zinc-800 space-y-3">
+                {hasMultipleUnpaid && (
+                  <div className="p-3 bg-amber-950/40 rounded-xl border border-amber-500/40 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-amber-300 block">
+                        Satukan Tagihan Meja #{order.tableNumber} ({relatedUnpaidOrders.length} Pesanan)
+                      </span>
+                      <span className="text-[11px] text-zinc-300">
+                        Pesanan Awal & Tambahan dapat dilunasi sekaligus.
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={settleAllOrders}
+                        onChange={(e) => {
+                          setSettleAllOrders(e.target.checked);
+                          setCashReceived(e.target.checked ? combinedTotal : order.totalAmount);
+                        }}
+                        className="w-4 h-4 accent-amber-400 rounded cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-white whitespace-nowrap">Lunasi Keduanya</span>
+                    </label>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-xs text-zinc-400 border-b border-zinc-800/80 pb-2">
-                  <span className="font-bold uppercase tracking-wider font-mono">Rincian Menu ({order.items.length} Item):</span>
+                  <span className="font-bold uppercase tracking-wider font-mono">
+                    {hasMultipleUnpaid && settleAllOrders
+                      ? `Rincian Tagihan Gabungan (${relatedUnpaidOrders.map(o => `#${o.orderNumber}`).join(' & ')}):`
+                      : `Rincian Menu (${order.items.length} Item):`}
+                  </span>
                   <span>Waktu: {order.createdAt}</span>
                 </div>
 

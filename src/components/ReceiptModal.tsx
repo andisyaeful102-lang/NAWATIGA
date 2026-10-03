@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Printer,
   X,
@@ -14,6 +14,7 @@ import {
   ChefHat,
   ArrowRight,
   ShieldCheck,
+  Clock,
 } from 'lucide-react';
 import { PlacedOrder } from './OrderStatusView.tsx';
 import { BaristaOrder } from './BaristaKDSView.tsx';
@@ -46,11 +47,128 @@ export interface ReceiptNormalizedData {
 interface ReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // Can receive either PlacedOrder or BaristaOrder or null
   customerOrder?: PlacedOrder | null;
+  allCustomerOrders?: PlacedOrder[];
+  isCombined?: boolean;
   baristaOrder?: BaristaOrder | null;
+  allBaristaOrders?: BaristaOrder[];
   initialMode?: 'customer' | 'kitchen';
 }
+
+const baristaOrderToPlacedOrder = (bo: BaristaOrder): PlacedOrder => ({
+  id: bo.id,
+  orderNumber: bo.orderNumber,
+  tableNumber: bo.tableNumber,
+  totalAmount: bo.totalAmount,
+  paymentMethod: bo.paymentMethod,
+  paymentStatus: bo.paymentStatus,
+  status: bo.status,
+  createdAt: bo.createdAt,
+  items: (bo.items || []).map((bi, biIdx) => ({
+    cartId: `${bo.orderNumber}-${biIdx}-${bi.name}`,
+    menuItem: {
+      id: bi.name,
+      name: bi.name,
+      price: bi.price || Math.round(bo.totalAmount / Math.max(bi.quantity, 1)),
+      category: 'coffee-signature' as const,
+      description: '',
+      isAvailable: true,
+      formattedPrice: `Rp ${(bi.price || 0).toLocaleString('id-ID')}`,
+      imageUrl: '',
+      tags: [],
+      customizable: {},
+      details: { composition: '', volume: '', beanOrigin: '', tastingNotes: [] },
+    } as any,
+    quantity: bi.quantity,
+    itemTotalPrice: (bi.price || Math.round(bo.totalAmount / Math.max(bi.quantity, 1))) * bi.quantity,
+    notes: bi.notes,
+  })) as any,
+});
+
+export const normalizeCombinedOrders = (
+  orders: PlacedOrder[]
+): ReceiptNormalizedData => {
+  const now = new Date();
+  const dateFormatted = now.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  if (!orders || orders.length === 0) {
+    return normalizeOrder(null, null);
+  }
+
+  if (orders.length === 1) {
+    return normalizeOrder(orders[0], null);
+  }
+
+  const tableNumber = orders[0].tableNumber;
+  const orderNumberList = orders.map((o) => `#${o.orderNumber}`).join(' & ');
+
+  const allItems: ReceiptItemNormalized[] = [];
+  orders.forEach((o, oIdx) => {
+    const rawItems = o.items || [];
+    rawItems.forEach((ci) => {
+      const customizations: string[] = [];
+      if (ci.sugarLevel) customizations.push(`Gula: ${ci.sugarLevel}`);
+      if (ci.milkType && ci.milkType.id !== 'regular') customizations.push(`Susu: ${ci.milkType.label}`);
+      if (ci.iceLevel) customizations.push(`Es: ${ci.iceLevel}`);
+      if (ci.notes) customizations.push(`Catatan: "${ci.notes}"`);
+
+      // Label item origin
+      customizations.unshift(oIdx === 0 ? `Pesanan Awal (#${o.orderNumber})` : `Tambah Pesanan (#${o.orderNumber})`);
+
+      const singlePrice = ci.menuItem
+        ? ci.menuItem.price + (ci.milkType?.price || 0)
+        : Math.round(ci.itemTotalPrice / Math.max(ci.quantity, 1));
+
+      allItems.push({
+        name: ci.menuItem?.name || 'Menu Pilihan Nawatiga',
+        quantity: ci.quantity,
+        price: singlePrice,
+        totalPrice: ci.itemTotalPrice,
+        notes: ci.notes,
+        customizations,
+      });
+    });
+  });
+
+  const total = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const subtotal = Math.round(total / 1.1);
+  const tax = total - subtotal;
+  const serviceCharge = 0;
+
+  const allPaid = orders.every((o) => o.paymentStatus === 'paid');
+  const allUnpaid = orders.every((o) => o.paymentStatus !== 'paid');
+
+  const methods = Array.from(new Set(orders.map((o) => o.paymentMethod).filter(Boolean)));
+  const combinedMethod = methods.length > 0 ? methods.join(' & ') : 'Tunai / QRIS';
+
+  const timeRange = orders[0].createdAt !== orders[orders.length - 1].createdAt
+    ? `${orders[0].createdAt} & ${orders[orders.length - 1].createdAt}`
+    : orders[0].createdAt || now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  return {
+    orderNumber: `${orderNumberList} (Gabungan)`,
+    tableNumber,
+    dateStr: dateFormatted,
+    timeStr: timeRange,
+    items: allItems,
+    subtotal,
+    tax,
+    serviceCharge,
+    total,
+    paymentMethod: allPaid ? combinedMethod : 'Bayar Nanti di Kasir (Gabungan)',
+    paymentStatus: allPaid
+      ? 'LUNAS (SUDAH DIBAYAR)'
+      : allUnpaid
+      ? 'BELUM LUNAS (BAYAR NANTI / DI KASIR)'
+      : 'SEBAGIAN LUNAS & SEBAGIAN BELUM DIBAYAR',
+    cashierName: 'Self-Order QR / Barista Dimas',
+  };
+};
 
 export const normalizeOrder = (
   custOrder?: PlacedOrder | null,
@@ -91,6 +209,13 @@ export const normalizeOrder = (
     const tax = total - subtotal;
     const serviceCharge = 0; // included in pricing
 
+    const isPaid = custOrder.paymentStatus === 'paid';
+    const isPayLater = !isPaid && (
+      custOrder.paymentStatus === 'pay_later' ||
+      custOrder.paymentStatus === 'unpaid' ||
+      /kasir|nanti|open bill/i.test(custOrder.paymentMethod || '')
+    );
+
     return {
       orderNumber: custOrder.orderNumber,
       tableNumber: custOrder.tableNumber,
@@ -101,13 +226,16 @@ export const normalizeOrder = (
       tax,
       serviceCharge,
       total,
-      paymentMethod: custOrder.paymentMethod || 'QRIS Dinamis',
-      paymentStatus:
-        custOrder.paymentStatus === 'pay_later' ||
-        custOrder.paymentStatus === 'unpaid' ||
-        /kasir|nanti|open bill/i.test(custOrder.paymentMethod || '')
-          ? 'BELUM LUNAS (BAYAR NANTI / DI KASIR)'
-          : 'LUNAS (PAID)',
+      paymentMethod: isPaid
+        ? (custOrder.paymentMethod && !/nanti|open bill/i.test(custOrder.paymentMethod)
+            ? custOrder.paymentMethod
+            : 'Lunas di Kasir (Tunai/QRIS)')
+        : (custOrder.paymentMethod || 'Bayar Nanti (Open Bill)'),
+      paymentStatus: isPaid
+        ? 'LUNAS (SUDAH DIBAYAR)'
+        : isPayLater
+        ? 'BELUM LUNAS (BAYAR NANTI / DI KASIR)'
+        : 'LUNAS (SUDAH DIBAYAR)',
       cashierName: 'Self-Order QR / Barista Dimas',
     };
   }
@@ -126,10 +254,12 @@ export const normalizeOrder = (
     const total = barOrder.totalAmount;
     const subtotal = Math.round(total / 1.1);
     const tax = total - subtotal;
-    const isPayLater =
+    const isBarPaid = barOrder.paymentStatus === 'paid';
+    const isBarPayLater = !isBarPaid && (
       barOrder.paymentStatus === 'pay_later' ||
       barOrder.paymentStatus === 'unpaid' ||
-      /nanti|kasir|open bill/i.test(barOrder.paymentMethod || '');
+      /nanti|kasir|open bill/i.test(barOrder.paymentMethod || '')
+    );
 
     return {
       orderNumber: barOrder.orderNumber,
@@ -141,8 +271,16 @@ export const normalizeOrder = (
       tax,
       serviceCharge: 0,
       total,
-      paymentMethod: barOrder.paymentMethod || 'QRIS',
-      paymentStatus: isPayLater ? 'BELUM LUNAS (BAYAR NANTI / OPEN BILL)' : 'LUNAS (PAID)',
+      paymentMethod: isBarPaid
+        ? (barOrder.paymentMethod && !/nanti|open bill/i.test(barOrder.paymentMethod)
+            ? barOrder.paymentMethod
+            : 'Lunas di Kasir')
+        : (barOrder.paymentMethod || 'Bayar Nanti'),
+      paymentStatus: isBarPaid
+        ? 'LUNAS (SUDAH DIBAYAR)'
+        : isBarPayLater
+        ? 'BELUM LUNAS (BAYAR NANTI / OPEN BILL)'
+        : 'LUNAS (SUDAH DIBAYAR)',
       cashierName: 'POS Barista Nawatiga',
     };
   }
@@ -183,16 +321,72 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
   onClose,
   customerOrder,
+  allCustomerOrders,
+  isCombined: propIsCombined,
   baristaOrder,
+  allBaristaOrders,
   initialMode = 'customer',
 }) => {
   const [mode, setMode] = useState<'customer' | 'kitchen'>(initialMode);
   const [copied, setCopied] = useState<boolean>(false);
   const receiptPrintRef = useRef<HTMLDivElement>(null);
 
+  // Orders list resolution (Supports both Customer orders and Barista orders)
+  const ordersList: PlacedOrder[] = (allCustomerOrders && allCustomerOrders.length > 0)
+    ? allCustomerOrders
+    : (allBaristaOrders && allBaristaOrders.length > 0)
+    ? allBaristaOrders.map(baristaOrderToPlacedOrder)
+    : (customerOrder ? [customerOrder] : (baristaOrder ? [baristaOrderToPlacedOrder(baristaOrder)] : []));
+
+  const hasMultiple = ordersList.length > 1;
+
+  const paidOrders = ordersList.filter((o) => o.paymentStatus === 'paid');
+  const unpaidOrders = ordersList.filter((o) => o.paymentStatus !== 'paid');
+
+  const allArePaid = hasMultiple && paidOrders.length === ordersList.length;
+  const isMixed = hasMultiple && paidOrders.length > 0 && unpaidOrders.length > 0;
+  const allAreUnpaid = hasMultiple && unpaidOrders.length === ordersList.length;
+
+  const [selectedOrderNumber, setSelectedOrderNumber] = useState<string | null>(
+    customerOrder?.orderNumber || baristaOrder?.orderNumber || (ordersList[0]?.orderNumber ?? null)
+  );
+
+  const [viewType, setViewType] = useState<'combined' | 'single'>(
+    isMixed ? 'single' : (propIsCombined || allArePaid || allAreUnpaid ? 'combined' : 'single')
+  );
+
+  useEffect(() => {
+    if (isMixed) {
+      // Aturan: Pisahkan struk yang sudah dibayar konsumen dari tambah pesanan yang belum dibayar!
+      setViewType('single');
+    } else if (propIsCombined !== undefined) {
+      setViewType(propIsCombined ? 'combined' : 'single');
+    } else if (allArePaid || allAreUnpaid) {
+      // Aturan: Kalo keduanya sudah dibayar (atau keduanya belum dibayar), satukan saja!
+      setViewType('combined');
+    } else {
+      setViewType('single');
+    }
+
+    if (customerOrder) {
+      setSelectedOrderNumber(customerOrder.orderNumber);
+    } else if (baristaOrder) {
+      setSelectedOrderNumber(baristaOrder.orderNumber);
+    } else if (ordersList[0]) {
+      setSelectedOrderNumber(ordersList[0].orderNumber);
+    }
+  }, [customerOrder, baristaOrder, propIsCombined, allArePaid, allAreUnpaid, isMixed, isOpen]);
+
   if (!isOpen) return null;
 
-  const data = normalizeOrder(customerOrder, baristaOrder);
+  const currentSingleOrder = ordersList.find((o) => o.orderNumber === selectedOrderNumber) || ordersList[0];
+
+  let data: ReceiptNormalizedData;
+  if (viewType === 'combined' && hasMultiple && !isMixed) {
+    data = normalizeCombinedOrders(ordersList);
+  } else {
+    data = normalizeOrder(currentSingleOrder, null);
+  }
 
   const handlePrint = () => {
     window.print();
@@ -351,6 +545,142 @@ Instagram: @nawatiga.coffee
 
         {/* Scrollable Receipt Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-zinc-950 space-y-4">
+          {/* Multiple Orders / Combined Struk Switcher */}
+          {hasMultiple && (
+            <div className="space-y-2">
+              {allArePaid ? (
+                /* Both/all orders are paid: SATUKAN SAJA by default */
+                <div className="p-1 bg-zinc-900 rounded-2xl border border-amber-500/50 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewType('combined')}
+                    className={`flex-1 min-w-[140px] py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      viewType === 'combined'
+                        ? 'bg-amber-400 text-zinc-950 font-black shadow-md'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Struk Gabungan Lunas ({ordersList.length} Pesanan)</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {ordersList.map((ord, idx) => (
+                      <button
+                        key={ord.orderNumber}
+                        type="button"
+                        onClick={() => {
+                          setViewType('single');
+                          setSelectedOrderNumber(ord.orderNumber);
+                        }}
+                        className={`py-1.5 px-2.5 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
+                          viewType === 'single' && selectedOrderNumber === ord.orderNumber
+                            ? 'bg-white text-zinc-950 font-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        <span>{idx === 0 ? 'Pesanan Awal' : `Tambah #${idx}`}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : isMixed ? (
+                /* Mixed: Order 1 is paid, Order 2 is unpaid: PISAHKAN! */
+                <div className="space-y-2">
+                  <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-600/50 text-xs text-amber-200 space-y-1 shadow-md">
+                    <span className="font-bold flex items-center gap-1.5 text-amber-300">
+                      <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <span>Struk Sengaja Dipisahkan (Sesuai Status Bayar):</span>
+                    </span>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">
+                      Sesuai sistem transaksi, struk yang sudah dibayar konsumen dipisahkan dari tambah pesanan baru yang belum lunas. Begitu pesanan tambahan dibayar di kasir, kedua struk akan otomatis disatukan.
+                    </p>
+                  </div>
+
+                  <div className="p-1 bg-zinc-900 rounded-2xl border border-zinc-800 flex flex-wrap gap-1.5">
+                    {paidOrders.map((pOrd, pIdx) => (
+                      <button
+                        key={pOrd.orderNumber}
+                        type="button"
+                        onClick={() => {
+                          setViewType('single');
+                          setSelectedOrderNumber(pOrd.orderNumber);
+                        }}
+                        className={`flex-1 min-w-[150px] py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          viewType === 'single' && selectedOrderNumber === pOrd.orderNumber
+                            ? 'bg-emerald-500 text-zinc-950 font-black shadow-md'
+                            : 'text-emerald-400 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/60'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>
+                          {pIdx === 0 ? '✓ Struk Lunas (Awal)' : `✓ Struk Lunas #${pIdx}`} (#{pOrd.orderNumber})
+                        </span>
+                      </button>
+                    ))}
+
+                    {unpaidOrders.map((uOrd, uIdx) => (
+                      <button
+                        key={uOrd.orderNumber}
+                        type="button"
+                        onClick={() => {
+                          setViewType('single');
+                          setSelectedOrderNumber(uOrd.orderNumber);
+                        }}
+                        className={`flex-1 min-w-[150px] py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          viewType === 'single' && selectedOrderNumber === uOrd.orderNumber
+                            ? 'bg-amber-400 text-zinc-950 font-black shadow-md'
+                            : 'text-amber-300 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>
+                          {uIdx === 0 ? '⏳ Tagihan Tambah Pesanan' : `⏳ Tagihan Kasir #${uIdx}`} (#{uOrd.orderNumber})
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* All unpaid (both bayar nanti di kasir): SATUKAN! */
+                <div className="p-1 bg-zinc-900 rounded-2xl border border-amber-500/40 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewType('combined')}
+                    className={`flex-1 py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      viewType === 'combined'
+                        ? 'bg-amber-400 text-zinc-950 font-black shadow'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Tagihan Gabungan Kasir ({ordersList.length} Pesanan)</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {ordersList.map((ord, idx) => (
+                      <button
+                        key={ord.orderNumber}
+                        type="button"
+                        onClick={() => {
+                          setViewType('single');
+                          setSelectedOrderNumber(ord.orderNumber);
+                        }}
+                        className={`py-1.5 px-2.5 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
+                          viewType === 'single' && selectedOrderNumber === ord.orderNumber
+                            ? 'bg-white text-zinc-950 font-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        <span>#{ord.orderNumber}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Quick Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-zinc-900/90 p-2.5 rounded-2xl border border-zinc-800 text-xs">
             <span className="text-[11px] text-zinc-400 flex items-center gap-1.5 font-medium">
@@ -607,14 +937,37 @@ Instagram: @nawatiga.coffee
                       </span>
                     </div>
 
-                    <div className="flex justify-between text-[10px] text-zinc-600 pt-0.5">
-                      <span>Status Pembayaran:</span>
-                      <span className={`font-bold uppercase ${
-                        data.paymentStatus.includes('BELUM LUNAS') ? 'text-amber-800' : 'text-zinc-900'
+                    <div className="flex justify-between items-center text-[11px] pt-1">
+                      <span className="text-zinc-600 font-bold">Status Pembayaran:</span>
+                      <span className={`font-black px-2 py-0.5 rounded text-[10px] uppercase tracking-wider ${
+                        data.paymentStatus.includes('BELUM LUNAS')
+                          ? 'bg-amber-100 text-amber-900 border border-amber-400'
+                          : 'bg-emerald-100 text-emerald-900 border border-emerald-500'
                       }`}>
-                        {data.paymentMethod} — {data.paymentStatus.includes('BELUM LUNAS') ? 'BELUM LUNAS [BAYAR NANTI]' : 'LUNAS [PAID]'}
+                        {data.paymentStatus.includes('BELUM LUNAS') ? '⏳ BELUM LUNAS (BAYAR DI KASIR)' : '✓ LUNAS (SUDAH DIBAYAR)'}
                       </span>
                     </div>
+
+                    {/* Official Stamp Banner on the Thermal Bill */}
+                    {!data.paymentStatus.includes('BELUM LUNAS') ? (
+                      <div className="my-2 border-2 border-dashed border-emerald-600 rounded-lg p-2 text-center bg-emerald-50/70">
+                        <div className="text-[12px] font-black text-emerald-800 tracking-widest uppercase">
+                          ★★★ LUNAS / TELAH DIBAYAR ★★★
+                        </div>
+                        <div className="text-[10px] text-emerald-700 font-medium">
+                          Metode: {data.paymentMethod} · Transaksi Berhasil
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="my-2 border-2 border-dashed border-amber-500 rounded-lg p-2 text-center bg-amber-50/70">
+                        <div className="text-[11px] font-black text-amber-800 tracking-wider uppercase">
+                          ⏳ OPEN BILL / BELUM LUNAS
+                        </div>
+                        <div className="text-[10px] text-amber-700 font-medium">
+                          Silakan selesaikan pembayaran di meja kasir saat mengambil pesanan.
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* WIFI & GUEST AMENITIES */}

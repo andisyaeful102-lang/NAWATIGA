@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Edit3, Image as ImageIcon, Sparkles, Check, AlertCircle, Loader2, DollarSign } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Plus, Edit3, Image as ImageIcon, Sparkles, Check, AlertCircle, Loader2, DollarSign, Upload, Camera } from 'lucide-react';
 import { MenuItem, CATEGORIES, MASTER_CATEGORIES, getMasterCategory } from '../data/menu.ts';
 import { playAdminChime } from '../utils/audio.ts';
 
@@ -37,6 +37,7 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
   const [imageUrl, setImageUrl] = useState<string>(PRESET_PHOTOS[0].url);
   const [isBestSeller, setIsBestSeller] = useState<boolean>(false);
   const [isSignature, setIsSignature] = useState<boolean>(false);
+  const [isRecommended, setIsRecommended] = useState<boolean>(false);
   const [isAvailable, setIsAvailable] = useState<boolean>(true);
   const [soldOutReason, setSoldOutReason] = useState<string>('Habis Terjual (Sold Out)');
   const [tagInput, setTagInput] = useState<string>('');
@@ -55,6 +56,8 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
 
   // Initialize or reset form values
   useEffect(() => {
@@ -66,6 +69,7 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
       setImageUrl(item.imageUrl);
       setIsBestSeller(Boolean(item.isBestSeller));
       setIsSignature(Boolean(item.isSignature));
+      setIsRecommended(Boolean(item.isRecommended));
       setIsAvailable(item.isAvailable !== false);
       setSoldOutReason(item.soldOutReason || 'Habis Terjual (Sold Out)');
       setTags(item.tags || []);
@@ -87,6 +91,7 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
       setImageUrl(PRESET_PHOTOS[0].url);
       setIsBestSeller(false);
       setIsSignature(false);
+      setIsRecommended(false);
       setIsAvailable(true);
       setSoldOutReason('Habis Terjual (Sold Out)');
       setTags(['Menu Baru']);
@@ -117,6 +122,59 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('File yang dipilih harus berupa gambar foto (JPG, PNG, atau WEBP).');
+      return;
+    }
+
+    setIsProcessingImage(true);
+    setErrorMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Compress & scale to max 800x800 for high quality & ultra-fast saving
+        const maxDim = 800;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setImageUrl(compressedDataUrl);
+        }
+        setIsProcessingImage(false);
+      };
+      img.onerror = () => {
+        setIsProcessingImage(false);
+        setErrorMessage('Gagal memproses gambar dari galeri.');
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setIsProcessingImage(false);
+      setErrorMessage('Gagal membaca file dari perangkat galeri.');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -145,6 +203,7 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
       tags: tags.length > 0 ? tags : ['Menu'],
       isBestSeller,
       isSignature,
+      isRecommended,
       isAvailable,
       soldOutReason: isAvailable ? undefined : soldOutReason,
       customizable: {
@@ -365,47 +424,81 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Image & Aesthetics */}
+          {/* Section 2: Upload Directly from Gallery */}
           <div className="space-y-3.5 pt-2">
-            <h4 className="font-bold uppercase tracking-wider text-[11px] text-zinc-400 border-b border-zinc-850 pb-1">
-              2. Foto Menu
-            </h4>
+            <div className="flex items-center justify-between border-b border-zinc-850 pb-1">
+              <h4 className="font-bold uppercase tracking-wider text-[11px] text-zinc-400">
+                2. Foto Menu (Upload Langsung dari Galeri)
+              </h4>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+                <Check className="w-3 h-3" /> Galeri HP / Komputer
+              </span>
+            </div>
 
             <div className="flex flex-col sm:flex-row gap-4 items-start">
               {/* Image Preview */}
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 flex-shrink-0 relative shadow-inner">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-700/80 flex-shrink-0 relative shadow-inner group">
                 {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = PRESET_PHOTOS[0].url;
-                    }}
-                  />
+                  <>
+                    <img
+                      src={imageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = PRESET_PHOTOS[0].url;
+                      }}
+                    />
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white text-[10px] font-bold cursor-pointer transition-opacity"
+                    >
+                      <Camera className="w-5 h-5 mb-1 text-amber-300" />
+                      <span>Ganti Foto</span>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                    <ImageIcon className="w-6 h-6" />
+                    <ImageIcon className="w-8 h-8" />
                   </div>
                 )}
               </div>
 
-              {/* Image URL & Preset Selection */}
-              <div className="flex-1 w-full space-y-2">
-                <div>
-                  <label className="block font-bold text-white mb-1">URL Foto (Bisa Custom / Pexels / Unsplash):</label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full px-3.5 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-white font-mono text-[11px] focus:outline-none focus:border-zinc-500"
-                  />
-                </div>
+              {/* Upload directly from Gallery / Camera */}
+              <div className="flex-1 w-full space-y-2.5">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                  className="hidden"
+                />
 
+                {/* Direct Upload Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessingImage}
+                  className="w-full py-4 px-4 rounded-2xl border-2 border-dashed border-amber-500/50 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 text-zinc-200 transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 group active:scale-[0.99]"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-zinc-950 flex items-center justify-center font-bold shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
+                    {isProcessingImage ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Upload className="w-5 h-5" />
+                    )}
+                  </div>
+                  <span className="font-extrabold text-xs text-white group-hover:text-amber-300 transition-colors">
+                    {isProcessingImage ? 'Sedang Memproses Foto...' : 'Klik untuk Pilih Foto dari Galeri HP / Kamera'}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    Format: JPG, PNG, WEBP (Bisa langsung jepret kamera atau ambil dari galeri)
+                  </span>
+                </button>
+
+                {/* Preset fallback options if staff doesn't want to use their own photo */}
                 <div>
                   <span className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wide mb-1">
-                    Atau Pilih Foto Preset Siap Pakai:
+                    Atau Pilih Contoh Foto Siap Pakai:
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {PRESET_PHOTOS.map((p) => (
@@ -415,7 +508,7 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
                         onClick={() => setImageUrl(p.url)}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all cursor-pointer ${
                           imageUrl === p.url
-                            ? 'bg-white text-zinc-950 border-white font-bold'
+                            ? 'bg-amber-400 text-zinc-950 border-amber-400 font-bold'
                             : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
                         }`}
                       >
@@ -435,6 +528,16 @@ export const MenuEditorModal: React.FC<MenuEditorModalProps> = ({
             </h4>
 
             <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isRecommended}
+                  onChange={(e) => setIsRecommended(e.target.checked)}
+                  className="rounded border-zinc-700 bg-zinc-900 text-white focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+                <span className="font-bold text-amber-300">🌟 Tandai Sebagai "Rekomendasi Barista / Chef"</span>
+              </label>
+
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"

@@ -25,15 +25,15 @@ import { ALL_100_TABLES, TABLE_ZONES, getTableZoneName } from '../data/tables.ts
 interface BarcodeStandProps {
   tableNumber: string;
   onOpenDigitalMenu: () => void;
-  onOpenCallWaiter: () => void;
   onSelectTable: (table: string) => void;
+  onBackToBarista?: () => void;
 }
 
 export const BarcodeStand: React.FC<BarcodeStandProps> = ({
   tableNumber,
   onOpenDigitalMenu,
-  onOpenCallWaiter,
   onSelectTable,
+  onBackToBarista,
 }) => {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
@@ -124,6 +124,35 @@ export const BarcodeStand: React.FC<BarcodeStandProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12 animate-in fade-in duration-200">
+      {/* Admin / Staff Navigation Toolbar */}
+      <div className="bg-zinc-950 p-3.5 rounded-2xl border border-zinc-800 flex items-center justify-between gap-3 flex-wrap shadow-lg">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+          <span className="text-xs font-black text-amber-300 uppercase tracking-wider font-mono">
+            Panel Staf: Generator Barcode Stand Akrilik
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onBackToBarista && (
+            <button
+              type="button"
+              onClick={onBackToBarista}
+              className="px-3 py-1.5 rounded-xl bg-zinc-850 hover:bg-zinc-800 text-zinc-200 hover:text-white text-xs font-bold border border-zinc-700 transition-colors cursor-pointer"
+            >
+              ← Layar KDS Barista
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpenDigitalMenu}
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-black transition-colors cursor-pointer"
+          >
+            Mode Tamu Konsumen →
+          </button>
+        </div>
+      </div>
+
       {/* Intro Header */}
       <div className="text-center space-y-1.5">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[10px] font-bold">
@@ -447,19 +476,6 @@ export const BarcodeStand: React.FC<BarcodeStandProps> = ({
               <ExternalLink className="w-3 h-3" />
             </button>
           </div>
-        </div>
-
-        {/* Call Waiter Alternative */}
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-[11px] text-zinc-400">Waiter kami siap membantu langsung ke meja Kakak:</span>
-          <button
-            type="button"
-            onClick={onOpenCallWaiter}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-white hover:text-amber-300 transition-colors underline cursor-pointer"
-          >
-            <Bell className="w-3.5 h-3.5" />
-            <span>Panggil Waiter Sekarang</span>
-          </button>
         </div>
       </div>
 

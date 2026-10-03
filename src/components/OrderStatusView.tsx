@@ -20,19 +20,19 @@ export interface PlacedOrder {
 interface OrderStatusViewProps {
   orders: PlacedOrder[];
   onOpenMenu: () => void;
-  onOpenCallWaiter: () => void;
   onSimulatePickupAlert?: (order: PlacedOrder) => void;
+  onLeaveTable?: () => void;
 }
 
 export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
   orders,
   onOpenMenu,
-  onOpenCallWaiter,
   onSimulatePickupAlert,
+  onLeaveTable,
 }) => {
   const [testBuzzerActive, setTestBuzzerActive] = useState<boolean>(false);
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<PlacedOrder | null>(null);
-  const [showSampleReceipt, setShowSampleReceipt] = useState<boolean>(false);
+  const [isReceiptCombined, setIsReceiptCombined] = useState<boolean>(false);
 
   const handleTestBuzzer = () => {
     setTestBuzzerActive(true);
@@ -42,83 +42,23 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
   };
 
   if (orders.length === 0) {
-    return (
-      <div className="max-w-xl mx-auto py-16 px-4 text-center space-y-4 animate-in fade-in duration-300">
-        <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center justify-center mx-auto shadow-inner">
-          <Utensils className="w-8 h-8" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-xl font-bold font-serif-cafe text-white">Belum Ada Pesanan Aktif</h3>
-          <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-            Setelah Kakak memesan melalui Menu Digital atau scan barcode meja, status pesanan real-time akan dipantau di sini.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
-          >
-            <span>Buka Menu Digital Sekarang</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowSampleReceipt(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border border-zinc-750 text-xs font-bold transition-all cursor-pointer shadow-sm"
-          >
-            <Receipt className="w-3.5 h-3.5 text-amber-400" />
-            <span>Lihat Contoh Struk & Ucapan Terima Kasih</span>
-          </button>
-
-          {onSimulatePickupAlert && (
-            <button
-              type="button"
-              onClick={() => {
-                onSimulatePickupAlert({
-                  orderNumber: 'NWT-8492',
-                  tableNumber: '07',
-                  items: [
-                    {
-                      cartId: 'mock-1',
-                      menuItem: MENU_ITEMS[0],
-                      quantity: 2,
-                      sugarLevel: 'Less Sugar (50%)',
-                      milkType: { id: 'oat', label: 'Oat Milk (Oatly)', price: 6000 },
-                      itemTotalPrice: 68000,
-                    },
-                    {
-                      cartId: 'mock-2',
-                      menuItem: MENU_ITEMS[8] || MENU_ITEMS[0],
-                      quantity: 1,
-                      notes: 'Ekstra saus aioli',
-                      itemTotalPrice: 30000,
-                    },
-                  ],
-                  totalAmount: 98000,
-                  paymentMethod: 'QRIS',
-                  createdAt: '19:42',
-                  status: 'serving',
-                });
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-700 text-xs font-bold transition-all cursor-pointer shadow-sm"
-            >
-              <Bell className="w-3.5 h-3.5 text-zinc-300 animate-bounce" />
-              <span>Simulasi Tampilan HP Konsumen (Buzzer Siap)</span>
-            </button>
-          )}
-        </div>
-
-        {/* Sample Receipt Modal */}
-        <ReceiptModal
-          isOpen={showSampleReceipt}
-          onClose={() => setShowSampleReceipt(false)}
-          initialMode="customer"
-        />
-      </div>
-    );
+    return null;
   }
+
+  const allOrdersCompletedAndPaid = orders.length > 0 && orders.every(
+    (o) => o.status === 'completed' && o.paymentStatus === 'paid'
+  );
+
+  // Group orders for table consolidation
+  const paidOrders = orders.filter((o) => o.paymentStatus === 'paid');
+  const unpaidOrders = orders.filter((o) => o.paymentStatus !== 'paid');
+  const totalAccumulated = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const paidTotal = paidOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const unpaidTotal = unpaidOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+  const allOrdersPaid = orders.length > 1 && paidOrders.length === orders.length;
+  const isMixedPayment = orders.length > 1 && paidOrders.length > 0 && unpaidOrders.length > 0;
+  const allOrdersUnpaid = orders.length > 1 && unpaidOrders.length === orders.length;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20 animate-in fade-in duration-300">
@@ -129,6 +69,41 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
           Sistem mandiri tanpa waiter: HP Anda akan berdering & bergetar saat pesanan siap diambil di Bar.
         </p>
       </div>
+
+      {/* Completion & Leave Table Card (when all orders are finished and paid) */}
+      {allOrdersCompletedAndPaid && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-950/70 via-zinc-900 to-emerald-950/70 rounded-3xl border border-emerald-500/50 text-center space-y-3 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-extrabold text-sm sm:text-base text-white">
+              Pesanan Telah Selesai & Lunas! ☕✨
+            </h3>
+            <p className="text-xs text-zinc-300 max-w-md mx-auto leading-relaxed">
+              Terima kasih banyak telah berkunjung ke NAWATIGA Coffee. Jika Kakak sudah selesai bersantai dan ingin meninggalkan meja, silakan klik tombol di bawah untuk mengosongkan sesi meja bagi tamu berikutnya.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            {onLeaveTable && (
+              <button
+                type="button"
+                onClick={onLeaveTable}
+                className="px-5 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-black text-xs flex items-center gap-1.5 shadow-lg transition-transform active:scale-95 cursor-pointer"
+              >
+                <span>👋 Selesai Kunjungan (Tinggalkan Meja)</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs border border-zinc-700 transition-colors cursor-pointer"
+            >
+              <span>+ Pesan Menu Tambahan</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Educational Card: How Self-Pickup Works */}
       <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-5 shadow-2xl space-y-3">
@@ -181,8 +156,157 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
         </div>
       </div>
 
+      {/* Multiple Orders Consolidation / Separation Banner */}
+      {orders.length > 1 && (
+        <div className="animate-in fade-in duration-300">
+          {allOrdersPaid ? (
+            /* Keduanya Sudah Dibayar: SATUKAN STRUK! */
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-950/60 via-zinc-900 to-amber-950/60 rounded-3xl border border-amber-500/50 shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 text-zinc-950 flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider">
+                        Struk Gabungan Otomatis
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/80 text-[10px] font-bold font-mono">
+                        ✓ Keduanya Lunas
+                      </span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-white">
+                      Struk Pesanan Awal & Tambah Pesanan Telah Disatukan
+                    </h3>
+                    <p className="text-xs text-zinc-300">
+                      Karena kedua pesanan sudah dibayar, rincian pesanan ({orders.length} pesanan · total Rp {totalAccumulated.toLocaleString('id-ID')}) otomatis digabung menjadi satu struk transaksi resmi.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedReceiptOrder(orders[0]);
+                    setIsReceiptCombined(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <Receipt className="w-4 h-4" />
+                  <span>Buka Struk Gabungan ☕</span>
+                </button>
+              </div>
+            </div>
+          ) : isMixedPayment ? (
+            /* Satu Lunas, Satu Belum Bayar: PISAHKAN STRUK! */
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-zinc-900 via-zinc-900 to-amber-950/40 rounded-3xl border border-amber-600/50 shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-800 text-amber-400 border border-zinc-700 flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider">
+                        Status Struk Dipisahkan
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-bold font-mono">
+                        ⚖️ 1 Lunas · 1 Belum Bayar
+                      </span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-white">
+                      Struk yang Sudah Dibayar Dipisahkan dari Tambah Pesanan
+                    </h3>
+                    <p className="text-xs text-zinc-300">
+                      Pesanan awal yang sudah lunas dipisahkan dari tambah pesanan baru yang belum dibayar. Begitu pesanan tambahan dilunasi di kasir, kedua struk akan otomatis disatukan.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-mono">
+                      <span className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                        ✓ Lunas: Rp {paidTotal.toLocaleString('id-ID')} ({paidOrders.map(p => `#${p.orderNumber}`).join(', ')})
+                      </span>
+                      <span className="text-amber-300 font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/60">
+                        ⏳ Belum Bayar: Rp {unpaidTotal.toLocaleString('id-ID')} ({unpaidOrders.map(u => `#${u.orderNumber}`).join(', ')})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex sm:flex-col gap-2 flex-shrink-0 w-full sm:w-auto">
+                  {paidOrders[0] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedReceiptOrder(paidOrders[0]);
+                        setIsReceiptCombined(false);
+                      }}
+                      className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/80 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>Struk Lunas (#{paidOrders[0].orderNumber})</span>
+                    </button>
+                  )}
+                  {unpaidOrders[0] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedReceiptOrder(unpaidOrders[0]);
+                        setIsReceiptCombined(false);
+                      }}
+                      className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shadow-sm"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Tagihan Tambahan (#{unpaidOrders[0].orderNumber})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Keduanya Belum Bayar (Kasir / Open Bill): SATUKAN STRUK! */
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-950/40 via-zinc-900 to-amber-950/40 rounded-3xl border border-amber-500/40 shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 text-zinc-950 flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider">
+                        Tagihan Kasir Disatukan
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800 text-[10px] font-bold font-mono">
+                        ⏱️ Open Bill Meja #{orders[0].tableNumber}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-white">
+                      Tagihan Pesanan Awal & Tambah Pesanan Disatukan
+                    </h3>
+                    <p className="text-xs text-zinc-300">
+                      Total kedua pesanan ({orders.length} pesanan · total Rp {totalAccumulated.toLocaleString('id-ID')}) disatukan agar Kakak cukup membayar satu kali di kasir.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedReceiptOrder(orders[0]);
+                    setIsReceiptCombined(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  <Receipt className="w-4 h-4" />
+                  <span>Buka Tagihan Kasir Gabungan ☕</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-4">
-        {orders.map((order) => {
+        {orders.map((order, orderIdx) => {
           const isServing = order.status === 'serving';
           const isCompleted = order.status === 'completed';
 
@@ -198,14 +322,27 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
               {/* Order Meta Header */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-sm font-black text-white">
                       #{order.orderNumber}
                     </span>
                     <span className="px-2 py-0.5 rounded-md bg-white text-zinc-950 text-[10px] font-black">
                       Meja #{order.tableNumber}
                     </span>
-                    {(order.paymentStatus === 'pay_later' || order.paymentStatus === 'unpaid' || /kasir|nanti/i.test(order.paymentMethod)) ? (
+                    {orders.length > 1 && (
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                        orderIdx === 0
+                          ? 'bg-amber-400 text-zinc-950'
+                          : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                      }`}>
+                        {orderIdx === 0 ? 'Pesanan Awal' : `Tambah Pesanan #${orderIdx}`}
+                      </span>
+                    )}
+                    {order.paymentStatus === 'paid' ? (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 text-[10px] font-bold font-mono">
+                        ✓ Lunas (Sudah Dibayar)
+                      </span>
+                    ) : (order.paymentStatus === 'pay_later' || order.paymentStatus === 'unpaid' || /kasir|nanti/i.test(order.paymentMethod)) ? (
                       <span className="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold font-mono">
                         ⏱️ Bayar Nanti di Kasir
                       </span>
@@ -216,14 +353,20 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
                     )}
                   </div>
                   <div className="text-[11px] text-zinc-400 mt-0.5 font-mono">
-                    Pukul {order.createdAt} · Pembayaran: {order.paymentMethod}
+                    Pukul {order.createdAt} · Pembayaran:{' '}
+                    {order.paymentStatus === 'paid' && /nanti|kasir/i.test(order.paymentMethod)
+                      ? 'Lunas di Kasir (Tunai/QRIS)'
+                      : order.paymentMethod}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedReceiptOrder(order)}
+                    onClick={() => {
+                      setSelectedReceiptOrder(order);
+                      setIsReceiptCombined(allOrdersPaid || allOrdersUnpaid);
+                    }}
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-bold border border-zinc-700 transition-colors shadow-sm cursor-pointer"
                     title="Buka Struk Digital Resmi & Ucapan Terima Kasih"
                   >
@@ -358,7 +501,10 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedReceiptOrder(order)}
+                    onClick={() => {
+                      setSelectedReceiptOrder(order);
+                      setIsReceiptCombined(allOrdersPaid || allOrdersUnpaid);
+                    }}
                     className="w-full py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-850 hover:border-zinc-600 text-zinc-200 hover:text-white border border-zinc-750 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
                   >
                     <Receipt className="w-4 h-4 text-white" />
@@ -368,29 +514,16 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
                 </div>
               </div>
 
-              {/* Self-Service Help & Additional Order */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <span className="text-xs text-zinc-400">
-                  Perlu bantuan barista atau alat makan tambahan?
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onOpenCallWaiter}
-                    className="px-3 py-1.5 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition-colors"
-                  >
-                    <Bell className="w-3.5 h-3.5" />
-                    <span>Bantuan Barista di Bar</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onOpenMenu}
-                    className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
-                  >
-                    <span>Tambah Menu Lain</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              {/* Additional Order Action */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={onOpenMenu}
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-black flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                >
+                  <span>+ Tambah Menu Lain</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           );
@@ -402,6 +535,8 @@ export const OrderStatusView: React.FC<OrderStatusViewProps> = ({
         isOpen={Boolean(selectedReceiptOrder)}
         onClose={() => setSelectedReceiptOrder(null)}
         customerOrder={selectedReceiptOrder}
+        allCustomerOrders={orders}
+        isCombined={isReceiptCombined}
         initialMode="customer"
       />
     </div>

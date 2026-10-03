@@ -255,9 +255,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center justify-center mx-auto">
                 <ShoppingBag className="w-7 h-7" />
               </div>
-              <h4 className="font-bold text-sm text-white">Keranjang Anda Masih Kosong</h4>
+              <h4 className="font-bold text-sm text-white">Keranjangmu Masih Kosong Nih!</h4>
               <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-                Silakan pilih sajian kopi atau camilan dari Menu Digital untuk menambahkan ke pesanan Meja #{tableNumber}.
+                Yuk pilih kopi atau cemilan favoritmu dulu biar nongkrong di Meja #{tableNumber} makin mantep!
               </p>
             </div>
           ) : (
@@ -546,8 +546,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </>
               )}
             </button>
-            <p className="text-[10px] text-zinc-500 text-center">
-              Setelah dikirim, tiket pesanan langsung muncul di bar & HP Anda berfungsi sebagai pager penjemputan.
+            <p className="text-[10px] text-zinc-400 text-center">
+              Habis dikirim, barista langsung meracik. Nanti HP kamu bakal bunyi bergetar pas pesanan udah siap diambil di bar!
             </p>
           </div>
         )}

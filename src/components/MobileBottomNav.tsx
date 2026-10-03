@@ -1,30 +1,23 @@
 import React from 'react';
-import { UtensilsCrossed, ClipboardList, MessageSquare, QrCode, ChefHat } from 'lucide-react';
+import { UtensilsCrossed, ClipboardList, MessageSquare } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  currentTab: 'chat' | 'menu' | 'stand' | 'orders' | 'barista';
-  onSelectTab: (tab: 'chat' | 'menu' | 'stand' | 'orders' | 'barista') => void;
+  currentTab: 'chat' | 'menu' | 'orders';
+  onSelectTab: (tab: 'chat' | 'menu' | 'orders') => void;
   activeOrderCount: number;
-  baristaPendingCount?: number;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentTab,
   onSelectTab,
   activeOrderCount,
-  baristaPendingCount = 0,
 }) => {
   const tabs = [
-    { id: 'menu' as const, label: 'Menu', icon: UtensilsCrossed },
-    { id: 'orders' as const, label: 'Pesanan', icon: ClipboardList, badge: activeOrderCount > 0 },
+    { id: 'menu' as const, label: 'Menu Digital', icon: UtensilsCrossed },
+    ...(activeOrderCount > 0
+      ? [{ id: 'orders' as const, label: `Pesanan (${activeOrderCount})`, icon: ClipboardList, badge: true }]
+      : []),
     { id: 'chat' as const, label: 'Tanya AI', icon: MessageSquare, badgeText: 'AI' },
-    { id: 'stand' as const, label: 'QR Meja', icon: QrCode },
-    {
-      id: 'barista' as const,
-      label: 'Barista',
-      icon: ChefHat,
-      countBadge: baristaPendingCount > 0 ? baristaPendingCount : undefined,
-    },
   ];
 
   return (
@@ -53,11 +46,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 />
                 {tab.badge && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-zinc-950 animate-ping" />
-                )}
-                {tab.countBadge && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black font-mono flex items-center justify-center animate-bounce shadow">
-                    {tab.countBadge}
-                  </span>
                 )}
                 {tab.badgeText && !isActive && (
                   <span className="absolute -top-1.5 -right-3 text-[9px] font-mono px-1 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">

@@ -144,13 +144,13 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
         {/* Top Tag: Jam Buka & Meja */}
         <div className="relative z-10 flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900/90 border border-zinc-700/80 text-[10px] sm:text-[11px] font-medium text-zinc-300 backdrop-blur-md whitespace-nowrap shadow-sm">
-            <Sunset className="w-3.5 h-3.5 text-zinc-300" />
+            <Sunset className="w-3.5 h-3.5 text-amber-400" />
             <span>Nyore 15:00</span>
             <span className="text-zinc-500">→</span>
             <Moon className="w-3.5 h-3.5 text-zinc-300" />
             <span>Malam 24:00</span>
             <span className="text-zinc-500">|</span>
-            <span className="font-bold text-white">Meja #{tableNumber}</span>
+            <span className="font-bold text-amber-300">Nongki di Meja #{tableNumber} 🔥</span>
           </div>
         </div>
 
@@ -176,7 +176,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-zinc-300 font-medium mt-0.5">
-                Self-Order & Pick-Up Barista Bar
+                Pesen Santuy dari Meja · Ambil Sendiri di Bar Barista ☕
               </p>
             </div>
           </div>
@@ -193,191 +193,22 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                 mobileFrameMode ? 'text-[11px]' : 'text-[11px] sm:text-xs'
               }`}
             >
-              Nikmati waktu santai ngopi nyore hingga larut malam. Pesan langsung dari meja Anda lewat barcode digital.
+              Lagi nongkrong nyore atau chill malem? Pesen kopi & cemilan favoritmu langsung dari meja, sat-set gak pake ribet!
             </p>
 
             <div className="flex-shrink-0 self-start sm:self-end">
               <div className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-700/80 text-[11px] text-zinc-300 backdrop-blur-md inline-flex items-center gap-2.5 shadow-md whitespace-nowrap">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-bold text-white">{readyCount} Menu</span>
-                  <span className="text-zinc-400 text-[10px]">Ready</span>
+                  <span className="font-bold text-white">{readyCount} Menu Ready Gas</span>
                 </div>
                 {soldOutCount > 0 && (
                   <div className="border-l border-zinc-700 pl-2.5 flex items-center gap-1">
                     <span className="font-bold text-red-400">{soldOutCount}</span>
-                    <span className="text-red-400 text-[10px] font-semibold">Habis</span>
+                    <span className="text-red-400 text-[10px] font-semibold">Ludes</span>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* SECTION: PILIH KATEGORI MENU YANG INGIN DITAMBAHKAN (BERANDA) */}
-      {/* ========================================================================= */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300 font-mono">
-              Pilih Kategori Menu yang Mau Ditambahkan:
-            </h3>
-          </div>
-          <span className="text-[11px] text-zinc-400 font-mono">3 Kategori Utama</span>
-        </div>
-
-        {/* 3 Large Visual Category Cards for Fast Selection */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Card 1: Coffee */}
-          <div
-            onClick={() => {
-              setSelectedMasterCategory('coffee');
-              setSelectedCategory('all');
-            }}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
-              selectedMasterCategory === 'coffee'
-                ? 'bg-amber-950/70 border-amber-500 shadow-xl shadow-amber-500/10 ring-2 ring-amber-400/40'
-                : 'bg-zinc-900/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center font-bold text-lg">
-                ☕
-              </div>
-              <span
-                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                  selectedMasterCategory === 'coffee'
-                    ? 'bg-amber-400 text-zinc-950 font-black'
-                    : 'bg-zinc-800 text-zinc-300'
-                }`}
-              >
-                {masterCategoryStats.coffee.ready} Ready
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <h4 className="font-extrabold text-sm text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
-                <span>Coffee (Kopi)</span>
-                {selectedMasterCategory === 'coffee' && (
-                  <Check className="w-3.5 h-3.5 text-amber-400 stroke-[3]" />
-                )}
-              </h4>
-              <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
-                Signature Latte, Espresso, Classic & Manual Brew
-              </p>
-            </div>
-
-            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-semibold">
-              <span className="text-[11px] text-amber-300/90 font-mono">
-                {masterCategoryStats.coffee.total} Pilihan Kopi
-              </span>
-              <span className="text-[11px] text-zinc-300 group-hover:text-white flex items-center gap-1">
-                <span>+ Tambah Kopi</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </span>
-            </div>
-          </div>
-
-          {/* Card 2: Non-Coffee */}
-          <div
-            onClick={() => {
-              setSelectedMasterCategory('non-coffee');
-              setSelectedCategory('all');
-            }}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
-              selectedMasterCategory === 'non-coffee'
-                ? 'bg-emerald-950/70 border-emerald-500 shadow-xl shadow-emerald-500/10 ring-2 ring-emerald-400/40'
-                : 'bg-zinc-900/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center font-bold text-lg">
-                🍵
-              </div>
-              <span
-                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                  selectedMasterCategory === 'non-coffee'
-                    ? 'bg-emerald-400 text-zinc-950 font-black'
-                    : 'bg-zinc-800 text-zinc-300'
-                }`}
-              >
-                {masterCategoryStats['non-coffee'].ready} Ready
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <h4 className="font-extrabold text-sm text-white group-hover:text-emerald-300 transition-colors flex items-center gap-1.5">
-                <span>Non-Coffee</span>
-                {selectedMasterCategory === 'non-coffee' && (
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                )}
-              </h4>
-              <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
-                Kyoto Matcha, Dark Chocolate & Artisan Tea
-              </p>
-            </div>
-
-            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-semibold">
-              <span className="text-[11px] text-emerald-300/90 font-mono">
-                {masterCategoryStats['non-coffee'].total} Pilihan Minuman
-              </span>
-              <span className="text-[11px] text-zinc-300 group-hover:text-white flex items-center gap-1">
-                <span>+ Tambah Non-Kopi</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Food / Makanan */}
-          <div
-            onClick={() => {
-              setSelectedMasterCategory('food');
-              setSelectedCategory('all');
-            }}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group ${
-              selectedMasterCategory === 'food'
-                ? 'bg-rose-950/70 border-rose-500 shadow-xl shadow-rose-500/10 ring-2 ring-rose-400/40'
-                : 'bg-zinc-900/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center font-bold text-lg">
-                🍽️
-              </div>
-              <span
-                className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                  selectedMasterCategory === 'food'
-                    ? 'bg-rose-400 text-zinc-950 font-black'
-                    : 'bg-zinc-800 text-zinc-300'
-                }`}
-              >
-                {masterCategoryStats.food.ready} Ready
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <h4 className="font-extrabold text-sm text-white group-hover:text-rose-300 transition-colors flex items-center gap-1.5">
-                <span>Makanan & Bites</span>
-                {selectedMasterCategory === 'food' && (
-                  <Check className="w-3.5 h-3.5 text-rose-400 stroke-[3]" />
-                )}
-              </h4>
-              <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
-                Truffle Fries, Pastry, Snack Gurih & Main Course
-              </p>
-            </div>
-
-            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs font-semibold">
-              <span className="text-[11px] text-rose-300/90 font-mono">
-                {masterCategoryStats.food.total} Pilihan Makanan
-              </span>
-              <span className="text-[11px] text-zinc-300 group-hover:text-white flex items-center gap-1">
-                <span>+ Tambah Makanan</span>
-                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </span>
             </div>
           </div>
         </div>
@@ -387,11 +218,11 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-xs text-amber-300 font-medium">
               <Compass className="w-3.5 h-3.5" />
-              <span>Eksplorasi Sajian Kopi & Makanan</span>
+              <span>Mau jajan apa hari ini, Kak? Kuy dicek!</span>
             </div>
-            <h2 className="text-lg font-bold text-white tracking-wide">Pilihan Menu Digital</h2>
+            <h2 className="text-lg font-bold text-white tracking-wide">Pilihan Menu Asik Buat Nongkrong</h2>
           </div>
 
           {/* Search box & Ready Only Toggle */}
@@ -402,7 +233,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari palm sugar, fries..."
+                placeholder="Ketik menu favoritmu, misal: kopi susu, fries, matcha..."
                 className="w-full pl-10 pr-3.5 py-2.5 text-xs rounded-xl border border-zinc-800 bg-zinc-900/90 text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 shadow-inner transition-colors"
               />
             </div>
@@ -414,12 +245,12 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
               className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border whitespace-nowrap cursor-pointer ${
                 filterReadyOnly
                   ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300 ring-1 ring-emerald-500'
-                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-800'
+                  : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border-zinc-800'
               }`}
               title="Saring menu yang ready saja"
             >
               <span className={`w-2 h-2 rounded-full ${filterReadyOnly ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
-              <span className="hidden sm:inline">Hanya</span> Ready
+              <span>Yang Ready Aja Cuy</span>
             </button>
           </div>
         </div>
@@ -498,13 +329,13 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
         {selectedMasterCategory !== 'all' && (
           <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-xs text-zinc-300">
             <span className="flex items-center gap-1.5 font-medium">
-              <span>Filter Kategori Aktif:</span>
+              <span>Lagi liat menu:</span>
               <strong className="text-white font-bold">
                 {selectedMasterCategory === 'coffee'
-                  ? '☕ Coffee (Kopi)'
+                  ? '☕ Kopi Enak'
                   : selectedMasterCategory === 'non-coffee'
-                  ? '🍵 Non-Coffee'
-                  : '🍽️ Makanan & Bites'}
+                  ? '🍵 Non-Kopi Seger'
+                  : '🍽️ Cemilan & Makanan'}
               </strong>
             </span>
             <button
@@ -515,7 +346,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
               }}
               className="text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer"
             >
-              Lihat Semua Menu
+              Balik ke Semua Menu Deh →
             </button>
           </div>
         )}
@@ -526,12 +357,12 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-zinc-200" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                Menu Andalan Rekomendasi ADMIN
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-200">
+                🔥 Menu Juara yang Paling Sering Diserbu Anak Nongkrong
               </h3>
             </div>
-            <span className="text-[11px] text-zinc-400 font-mono">Wajib Coba Nyore & Malam</span>
+            <span className="text-[11px] text-zinc-400 font-mono">Wajib Banget Dicobain Cuy!</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -702,11 +533,11 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
         {filteredItems.length === 0 ? (
           <div className="p-12 text-center bg-zinc-900/40 rounded-3xl border border-zinc-800/80 space-y-3">
             <Coffee className="w-8 h-8 text-zinc-600 mx-auto" />
-            <p className="text-sm font-semibold text-zinc-300">Tidak ada menu yang sesuai</p>
+            <p className="text-sm font-semibold text-zinc-300">Waduh, menu yang kamu cari gak ketemu nih cuy!</p>
             <p className="text-xs text-zinc-400 max-w-sm mx-auto">
               {filterReadyOnly
-                ? 'Semua menu dalam kategori ini saat ini sedang habis atau tidak cocok dengan pencarian Anda.'
-                : 'Coba kata kunci lain atau pilih kategori lain di atas.'}
+                ? 'Semua menu di kategori ini lagi ludes atau gak cocok sama pencarianmu. Coba matiin filter ready ya!'
+                : 'Coba cari pake kata kunci lain atau kepoin tab kategori di atas ya Kak!'}
             </p>
             {filterReadyOnly && (
               <button
@@ -714,7 +545,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                 onClick={() => setFilterReadyOnly(false)}
                 className="px-4 py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold hover:bg-zinc-700"
               >
-                Tampilkan Semua Termasuk yang Habis
+                Tampilin Semua Menu Deh
               </button>
             )}
           </div>
@@ -748,8 +579,13 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-transparent opacity-70" />
 
-                      {/* Best Seller / Signature badges */}
+                      {/* Best Seller / Signature / Rekomendasi badges */}
                       <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+                        {item.isRecommended && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-400 text-zinc-950 text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1">
+                            <span>⭐ Rekomendasi</span>
+                          </span>
+                        )}
                         {item.isBestSeller && (
                           <span className="px-2 py-0.5 rounded-md bg-zinc-950/90 border border-zinc-700 text-[10px] font-bold uppercase tracking-wider text-white shadow-md">
                             Best Seller
@@ -833,7 +669,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>+ Tambah</span>
+                        <span>+ Pesan</span>
                       </button>
                     ) : (
                       <button
@@ -845,7 +681,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs font-bold border border-red-800/80 transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
                         <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                        <span>Habis</span>
+                        <span>Yah, Ludes</span>
                       </button>
                     )}
                   </div>
@@ -855,6 +691,21 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
           </div>
         )}
       </div>
+
+      {/* Discreet Footer link for Admin & Barista */}
+      <footer className="pt-10 pb-6 text-center space-y-2 border-t border-zinc-900/80 mt-8">
+        <p className="text-[11px] text-zinc-500">
+          NAWATIGA Coffee & Roastery · Specialty Coffee & Artisan Kitchen
+        </p>
+        <div>
+          <a
+            href="/?mode=admin"
+            className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-white transition-colors py-1 px-3 rounded-lg hover:bg-zinc-900 border border-transparent hover:border-zinc-800"
+          >
+            <span>🔒 Portal Khusus Barista & Admin (PIN: 8888)</span>
+          </a>
+        </div>
+      </footer>
 
       {/* Sold Out Notice Pop-up Modal when user taps an unavailable item */}
       {soldOutItemNotice && (
@@ -866,19 +717,19 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
 
             <div className="text-center space-y-1.5">
               <span className="px-2.5 py-0.5 rounded-full bg-red-950 text-red-300 text-[10px] font-black uppercase tracking-wider border border-red-800">
-                Menu Sedang Habis / Sold Out
+                Yah Ludes Cuy! Menu Ini Lagi Habis Hari Ini
               </span>
               <h3 className="text-base font-bold text-white font-serif-cafe mt-1">
                 {soldOutItemNotice.name}
               </h3>
               <p className="text-xs text-zinc-300 leading-relaxed">
-                Maaf Kak! Bahan untuk sajian ini sudah habis terjual hari ini. Sistem otomatis menonaktifkan pemesanan agar tidak terjadi kesalahan racik.
+                Maaf banget ya Kak! Menu ini lagi sold out parah diborong pelanggan hari ini. Jangan sedih, masih banyak racikan lain yang gak kalah mantap di bawah!
               </p>
             </div>
 
             <div className="p-3 bg-zinc-950 rounded-2xl border border-zinc-800/80 text-xs space-y-1 text-left">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
-                💡 Rekomendasi Menu Serupa yang READY:
+                💡 Rekomendasi Menu Serupa yang Lagi READY BANGET:
               </span>
               <p className="text-zinc-200 font-medium text-[11px]">
                 {soldOutItemNotice.category.includes('coffee')
@@ -892,7 +743,7 @@ export const MenuCatalog: React.FC<MenuCatalogProps> = ({
               onClick={() => setSoldOutItemNotice(null)}
               className="w-full py-3 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs transition-colors cursor-pointer"
             >
-              Baik, Saya Pilih Menu Lain
+              Oke Deh, Gue Pilih Menu Lain Aja
             </button>
           </div>
         </div>

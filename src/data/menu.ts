@@ -8,6 +8,7 @@ export interface MenuItem {
   imageUrl: string;
   isBestSeller?: boolean;
   isSignature?: boolean;
+  isRecommended?: boolean;
   isAvailable?: boolean; // Status Ketersediaan: true = Ready, false = Habis/Sold Out
   soldOutReason?: string;
   tags: string[];
@@ -67,7 +68,8 @@ export const MENU_ITEMS: MenuItem[] = [
     imageUrl: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=800&auto=format&fit=crop',
     isBestSeller: true,
     isSignature: true,
-    tags: ['Best Seller', 'Signature', 'Es Kopi Susu'],
+    isRecommended: true,
+    tags: ['Best Seller', 'Signature', 'Rekomendasi', 'Es Kopi Susu'],
     customizable: {
       sugarLevel: true,
       milkType: true,
